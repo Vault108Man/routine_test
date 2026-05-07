@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Routine">
+  <title>Daily Routine</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root { --c: #f59e0b; }
+
+    body {
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #fff;
+      overflow-x: hidden;
+    }
+
+    /* ── Background layers ───────────────────────────────────────── */
+    .bg {
+      position: fixed;
+      inset: 0;
+      transition: opacity 4s ease;
+      z-index: 0;
+    }
+
+    /* ── Timeline strip ──────────────────────────────────────────── */
+    #strip {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 6px;
+      display: flex;
+      z-index: 10;
+    }
+
+    .seg {
+      height: 100%;
+      opacity: 0.25;
+      transition: opacity 0.6s ease;
+    }
+    .seg.on { opacity: 1; }
+
+    #marker {
+      position: absolute;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      background: #fff;
+      box-shadow: 0 0 8px rgba(255,255,255,0.9);
+      transform: translateX(-50%);
+    }
+
+    /* ── Block labels under strip ────────────────────────────────── */
+    #labels {
+      position: fixed;
+      top: 10px; left: 0; right: 0;
+      display: flex;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .lbl {
+      font-size: 8px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.12);
+      overflow: hidden;
+      white-space: nowrap;
+      padding: 0 5px;
+      transition: color 0.6s ease;
+    }
+    .lbl.on { color: rgba(255,255,255,0.45); }
+    @media (max-width: 430px) { #labels { display: none; } }
+
+    /* ── Layout ──────────────────────────────────────────────────── */
+    .shell {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px 24px;
+      padding-top: max(32px, env(safe-area-inset-top) + 20px);
+      padding-bottom: max(24px, env(safe-area-inset-bottom) + 16px);
+    }
+
+    .card { width: 100%; max-width: 500px; }
+
+    /* ── Clock ───────────────────────────────────────────────────── */
+    #clock {
+      font-size: 70px;
+      font-weight: 200;
+      letter-spacing: -3px;
+      line-height: 1;
+    }
+
+    .ampm {
+      font-size: 26px;
+      font-weight: 300;
+      color: #666;
+      letter-spacing: 0;
+    }
+
+    #dateline {
+      font-size: 13px;
+      color: #666;
+      margin-top: 8px;
+      letter-spacing: 0.4px;
+    }
+
+    /* ── Day progress ────────────────────────────────────────────── */
+    .day-wrap { margin-top: 20px; }
+
+    /* ── Mobile overrides ────────────────────────────────────────── */
+    @media (max-width: 430px) {
+      .shell { padding-left: 20px; padding-right: 20px; }
+      #clock { font-size: 52px; letter-spacing: -2px; }
+      .ampm  { font-size: 20px; }
+      #dateline { font-size: 12px; }
+      #action { font-size: 20px; }
+      .blk-name { font-size: 10px; }
+      .divider  { margin: 16px 0; }
+      .day-wrap { margin-top: 14px; }
+      .blk-bar  { margin-top: 14px; }
+      #coming   { margin-top: 16px; padding-top: 14px; }
+      .sleep-moon  { font-size: 56px; }
+      .sleep-title { font-size: 22px; }
+      .meals-section { padding: 0 16px 60px; }
+      .daily-totals  { border-radius: 8px; }
+      .tot-val { font-size: 19px; }
+      .meal-grid { grid-template-columns: 1fr; }
+      .meal-card.wide { grid-column: span 1; }
+    }
+
+    .bar-track {
+      height: 1px;
+      background: #1c1c1c;
+      border-radius: 1px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 1px;
+      transition: width 60s linear;
+    }
+
+    #day-fill  { background: #2a2a2a; }
+    #blk-fill  { background: var(--c); opacity: 0.45; }
+
+    .bar-meta {
+      font-size: 10px;
+      color: #555;
+      margin-top: 5px;
+      letter-spacing: 0.3px;
+    }
+
+    .divider {
+      height: 1px;
+      background: #161616;
+      margin: 22px 0;
+    }
+
+    /* ── Block header ────────────────────────────────────────────── */
+    .blk-head {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    /* SVG ring */
+    .ring-bg   { fill:none; stroke:#1c1c1c; stroke-width:2.5; }
+    .ring-fill {
+      fill: none;
+      stroke: var(--c);
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s linear;
+    }
+    .ring-txt {
+      font-size: 9px;
+      fill: var(--c);
+      text-anchor: middle;
+      dominant-baseline: middle;
+      font-family: inherit;
+      font-weight: 600;
+    }
+
+    .blk-name {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--c);
+      margin-bottom: 3px;
+    }
+
+    .blk-end {
+      font-size: 11px;
+      color: #555;
+      letter-spacing: 0.2px;
+    }
+
+    /* ── Current action ──────────────────────────────────────────── */
+    .now-lbl {
+      font-size: 10px;
+      color: #555;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 9px;
+    }
+
+    #action {
+      font-size: 25px;
+      font-weight: 400;
+      line-height: 1.35;
+      color: #fff;
+      animation: rise 0.5s ease;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(7px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Meal macros ─────────────────────────────────────────────── */
+    .macros {
+      display: flex;
+      gap: 0;
+      margin-top: 14px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid #1a1a1a;
+      border-radius: 8px;
+      overflow: hidden;
+      animation: rise 0.5s ease 0.08s both;
+    }
+
+    .macro {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 8px;
+      gap: 3px;
+      border-right: 1px solid #1a1a1a;
+    }
+    .macro:last-child { border-right: none; }
+
+    .macro-val {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--c);
+    }
+
+    .macro-key {
+      font-size: 9px;
+      color: #555;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+
+    /* ── Block progress ──────────────────────────────────────────── */
+    .blk-bar { margin-top: 20px; }
+    .blk-meta { font-size: 10px; color: #555; margin-top: 5px; }
+
+    /* ── Coming up ───────────────────────────────────────────────── */
+    #coming {
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid #141414;
+      animation: rise 0.5s ease 0.14s both;
+    }
+
+    .up-lbl {
+      font-size: 10px;
+      color: #555;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .up-row {
+      display: flex;
+      gap: 14px;
+      align-items: baseline;
+      padding: 4px 0;
+    }
+
+    .up-t {
+      font-size: 11px;
+      color: var(--c);
+      opacity: 0.7;
+      min-width: 52px;
+      flex-shrink: 0;
+    }
+
+    .up-a { font-size: 14px; line-height: 1.4; }
+    .up-row:nth-of-type(2) .up-a { color: #999; }
+    .up-row:nth-of-type(3) .up-a { color: #666; }
+    .up-row:nth-of-type(4) .up-a { color: #444; }
+
+    /* ── Sleep ───────────────────────────────────────────────────── */
+    .sleep-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      padding-top: 8px;
+    }
+    .sleep-moon {
+      font-size: 72px;
+      line-height: 1;
+      animation: moonPulse 4s ease-in-out infinite;
+      filter: drop-shadow(0 0 24px rgba(150,130,255,0.4));
+    }
+    @keyframes moonPulse {
+      0%,100% { transform: scale(1);   opacity: 0.9; }
+      50%      { transform: scale(1.05); opacity: 1;   }
+    }
+    .sleep-title {
+      font-size: 28px;
+      font-weight: 200;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #a89fcc;
+    }
+    .sleep-sub {
+      font-size: 13px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #4a4460;
+    }
+    .sleep-until {
+      font-size: 15px;
+      color: #6a6080;
+      letter-spacing: 0.5px;
+    }
+    .sleep-until span {
+      color: #9a90bb;
+      font-weight: 400;
+    }
+    .sleep-stars {
+      font-size: 11px;
+      color: #302840;
+      letter-spacing: 6px;
+      animation: starFade 6s ease-in-out infinite;
+    }
+    @keyframes starFade {
+      0%,100% { opacity: 0.4; }
+      50%      { opacity: 1;   }
+    }
+
+    /* ── Scroll hint ─────────────────────────────────────────────── */
+    .scroll-hint {
+      text-align: center;
+      padding: 28px 0 32px;
+      font-size: 10px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: #282828;
+      animation: bob 3s ease-in-out infinite;
+      cursor: default;
+    }
+    @media (max-width: 430px) { .scroll-hint { color: #3a3a3a; } }
+    @keyframes bob {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(5px); }
+    }
+
+    /* ── Meals section ───────────────────────────────────────────── */
+    .meals-section {
+      position: relative;
+      z-index: 1;
+      max-width: 548px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    .meals-rule {
+      height: 1px;
+      background: #161616;
+      margin-bottom: 32px;
+    }
+
+    .sec-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #444;
+      margin-bottom: 20px;
+    }
+
+    /* ── Daily totals ────────────────────────────────────────────── */
+    .daily-totals {
+      display: flex;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid #1c1c1c;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 36px;
+    }
+
+    .tot-item {
+      flex: 1;
+      padding: 16px 10px;
+      text-align: center;
+      border-right: 1px solid #1c1c1c;
+    }
+    .tot-item:last-child { border-right: none; }
+
+    .tot-val {
+      font-size: 24px;
+      font-weight: 200;
+      letter-spacing: -1px;
+      color: #fff;
+    }
+
+    .tot-key {
+      font-size: 9px;
+      color: #444;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* ── Meal cards ──────────────────────────────────────────────── */
+    .meal-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+    @media (max-width: 500px) { .meal-grid { grid-template-columns: 1fr; } }
+
+    .meal-card {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid #1a1a1a;
+      border-top: 2px solid var(--mc);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .meal-card.wide { grid-column: span 2; }
+    @media (max-width: 500px) { .meal-card.wide { grid-column: span 1; } }
+
+    .mc-head {
+      padding: 13px 14px 10px;
+      border-bottom: 1px solid #161616;
+    }
+
+    .mc-time {
+      font-size: 10px;
+      color: var(--mc);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+      opacity: 0.75;
+    }
+
+    .mc-name {
+      font-size: 15px;
+      font-weight: 500;
+      color: #fff;
+    }
+
+    .mc-macros {
+      display: flex;
+      gap: 14px;
+      padding: 9px 14px;
+      border-bottom: 1px solid #161616;
+    }
+
+    .mc-mac { display: flex; flex-direction: column; gap: 2px; }
+    .mc-mac-val { font-size: 14px; font-weight: 500; color: var(--mc); }
+    .mc-mac-key { font-size: 9px; color: #3a3a3a; letter-spacing: 0.5px; text-transform: uppercase; }
+
+    .mc-ings { padding: 10px 14px; border-bottom: 1px solid #161616; }
+
+    .ing-row {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+      padding: 4px 0;
+      border-bottom: 1px solid #0e0e0e;
+    }
+    .ing-row:last-child { border-bottom: none; }
+
+    .ing-qty  { font-size: 11px; color: #444; min-width: 46px; flex-shrink: 0; }
+    .ing-name { font-size: 13px; color: #bbb; flex: 1; }
+
+    .ing-notes { display: flex; flex-wrap: wrap; gap: 4px; }
+    .ing-note  {
+      font-size: 9px;
+      color: #3a3a3a;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid #1e1e1e;
+      border-radius: 3px;
+      padding: 1px 5px;
+      letter-spacing: 0.3px;
+    }
+
+    .mc-nutrients {
+      padding: 10px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .nut-tag {
+      font-size: 10px;
+      color: var(--mc);
+      border: 1px solid var(--mc);
+      border-radius: 100px;
+      padding: 2px 8px;
+      opacity: 0.5;
+      letter-spacing: 0.2px;
+    }
+
+    /* ── Glossary ────────────────────────────────────────────────── */
+    .glossary { margin-top: 8px; }
+
+    .gloss-cat { margin-bottom: 24px; }
+
+    .gloss-cat-name {
+      font-size: 10px;
+      color: #2e2e2e;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111;
+    }
+
+    .gloss-item { border-bottom: 1px solid #111; }
+
+    .gloss-item summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 0;
+      font-size: 13px;
+      color: #666;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+    .gloss-item summary::-webkit-details-marker { display: none; }
+    .gloss-item[open] summary { color: #ccc; }
+    .gloss-item summary::after { content: '+'; font-size: 15px; color: #2a2a2a; }
+    .gloss-item[open] summary::after { content: '−'; color: #555; }
+
+    .gloss-desc {
+      font-size: 13px;
+      line-height: 1.65;
+      color: #555;
+      padding: 0 0 14px;
+      max-width: 460px;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg" id="bga"></div>
+  <div class="bg" id="bgb" style="opacity:0"></div>
+  <div id="strip"></div>
+  <div id="labels"></div>
+
+  <div class="shell">
+    <div class="card">
+
+      <div id="clock-wrap">
+        <div id="clock"></div>
+        <div id="dateline"></div>
+        <div class="day-wrap">
+          <div class="bar-track"><div class="bar-fill" id="day-fill"></div></div>
+          <div class="bar-meta" id="day-meta"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div id="body"></div>
+
+    </div>
+  </div>
+
+  <div class="scroll-hint">Nutrition &nbsp;↓</div>
+  <div class="meals-section" id="meals-section"></div>
+
+<script>
+/* ── ROUTINE DATA ────────────────────────────────────────────── */
+const R = [
+  {t:"06:00",b:"Morning",        c:"#f59e0b", a:"Wake. Still. Reconstruct dream backward."},
+  {t:"06:02",b:"Morning",        c:"#f59e0b", a:"Dream journal — fragments only, no interpretation."},
+  {t:"06:05",b:"Morning",        c:"#f59e0b", a:"16 oz water."},
+  {t:"06:15",b:"Morning",        c:"#f59e0b", a:"30m Meditate outside or inside. Use Insight Timer."},
+  {t:"06:45",b:"Morning",        c:"#f59e0b", a:"Breakfast.", m:{p:32,f:33,cb:2,k:430}},
+  {t:"07:15",b:"Morning",        c:"#f59e0b", a:"Stretch + walk outside."},
+  {t:"07:45",b:"Morning",        c:"#f59e0b", a:"Green or black tea."},
+  {t:"08:00",b:"Morning",        c:"#f59e0b", a:"Chill and say bye to Marissa."},
+  {t:"08:30",b:"Morning",        c:"#f59e0b", a:"Clean office + kitchen."},
+  {t:"08:40",b:"Morning",        c:"#f59e0b", a:"Todoist Check."},
+  {t:"08:45",b:"Morning Work",   c:"#60a5fa", a:"Deep Work Block #1 · 16 oz water."},
+  {t:"11:00",b:"Lunch",          c:"#34d399", a:"Lunch.", m:{p:55,f:5,cb:56,k:475}},
+  {t:"11:30",b:"Lunch",          c:"#34d399", a:"30m outside reset — sun, fresh air, no screens. Use Insight Timer."},
+  {t:"12:00",b:"Afternoon Work", c:"#60a5fa", a:"Deep Work Block #2."},
+  {t:"16:00",b:"Workout",        c:"#f87171", a:"Pre-workout shake — 1 scoop whey · 8 oz water."},
+  {t:"16:15",b:"Workout",        c:"#f87171", a:"Strength training · 24 oz water throughout."},
+  {t:"17:15",b:"Workout",        c:"#f87171", a:"Quick shower + reset."},
+  {t:"18:00",b:"Evening",        c:"#c084fc", a:"Dinner with wife.", m:{p:52,f:19,cb:50,k:585}},
+  {t:"18:30",b:"Evening",        c:"#c084fc", a:"Clean house + reset."},
+  {t:"19:00",b:"Evening",        c:"#c084fc", a:"Update Todoist · work mental block after."},
+  {t:"19:05",b:"Evening",        c:"#c084fc", a:"Decompress. This time is yours. · 16 oz water."},
+  {t:"20:15",b:"Evening",        c:"#c084fc", a:"Night Snack.", m:{p:4,f:23,cb:39,k:340}},
+  {t:"20:30",b:"Evening",        c:"#c084fc", a:"Digital sunset — calm music / low-stim content only."},
+  {t:"21:00",b:"Evening",        c:"#c084fc", a:"Physical reading. Electronics away and charging."},
+  {t:"21:30",b:"Evening",        c:"#c084fc", a:"Gratitude journal + lucid dream journal review."},
+  {t:"21:45",b:"Evening",        c:"#c084fc", a:"Night hygiene, shave (if needed)."},
+  {t:"22:00",b:"Sleep",          c:"#4b5563", a:"Sleep."},
+];
+
+const BLOCKS = [
+  {n:"Morning",        s:"06:00", e:"08:45", c:"#f59e0b"},
+  {n:"Morning Work",   s:"08:45", e:"11:00", c:"#60a5fa"},
+  {n:"Lunch",          s:"11:00", e:"12:00", c:"#34d399"},
+  {n:"Afternoon Work", s:"12:00", e:"16:00", c:"#60a5fa"},
+  {n:"Workout",        s:"16:00", e:"18:00", c:"#f87171"},
+  {n:"Evening",        s:"18:00", e:"22:00", c:"#c084fc"},
+];
+
+const BG = {
+  "Morning":        "radial-gradient(ellipse at 50% 120%, #1a0d02 0%, #0c0601 55%, #070400 100%)",
+  "Morning Work":   "radial-gradient(ellipse at 50% -30%, #020b18 0%, #040810 55%, #030609 100%)",
+  "Lunch":          "radial-gradient(ellipse at 50% 120%, #071005 0%, #050904 55%, #040703 100%)",
+  "Afternoon Work": "radial-gradient(ellipse at 50% 120%, #030a12 0%, #04080f 55%, #030609 100%)",
+  "Workout":        "radial-gradient(ellipse at 50% 120%, #130303 0%, #090202 55%, #060101 100%)",
+  "Evening":        "radial-gradient(ellipse at 50% -30%, #0d0517 0%, #090413 55%, #060310 100%)",
+  "Sleep":          "radial-gradient(ellipse at 50% 0%, #0d0a1a 0%, #07060f 50%, #030308 100%)",
+};
+
+/* ── HELPERS ─────────────────────────────────────────────────── */
+const D_S = 360, D_E = 1320, D_T = D_E - D_S;
+
+function m(t){ const[h,mm]=t.split(':').map(Number); return h*60+mm; }
+function fmt(mins){
+  const h=Math.floor(mins/60)%12||12, mm=mins%60;
+  return `${h}:${String(mm).padStart(2,'0')} ${Math.floor(mins/60)>=12?'PM':'AM'}`;
+}
+
+/* ── RING ────────────────────────────────────────────────────── */
+const RAD=14, CIR=+(2*Math.PI*RAD).toFixed(2);
+
+function ringSVG(pct, minLeft){
+  const off = +(CIR*(pct/100)).toFixed(2);
+  const lbl = minLeft>60 ? `${Math.round(minLeft/60)}h`
+            : minLeft>0  ? `${minLeft}m`
+            : '✓';
+  return `<svg id="ring-svg" width="40" height="40" viewBox="0 0 40 40">
+    <circle class="ring-bg"  cx="20" cy="20" r="${RAD}"/>
+    <circle class="ring-fill" cx="20" cy="20" r="${RAD}"
+      stroke-dasharray="${CIR}"
+      style="stroke-dashoffset:${off}"
+      transform="rotate(-90 20 20)"/>
+    <text class="ring-txt" x="20" y="20.5">${lbl}</text>
+  </svg>`;
+}
+
+/* ── BACKGROUND CROSSFADE ────────────────────────────────────── */
+let curBg='a', lastBl=null;
+function setBg(blk){
+  if(blk===lastBl) return;
+  lastBl=blk;
+  const bg=BG[blk]||BG.Sleep;
+  const nxt=curBg==='a'?'b':'a';
+  const nEl=document.getElementById('bg'+nxt);
+  const cEl=document.getElementById('bg'+curBg);
+  nEl.style.background=bg;
+  nEl.style.zIndex='1';
+  nEl.style.opacity='0';
+  cEl.style.zIndex='0';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{ nEl.style.opacity='1'; }));
+  curBg=nxt;
+}
+
+/* ── TIMELINE (build once) ───────────────────────────────────── */
+function buildStrip(){
+  const strip=document.getElementById('strip');
+  const labs=document.getElementById('labels');
+  BLOCKS.forEach(b=>{
+    const w=((m(b.e)-m(b.s))/D_T*100).toFixed(2);
+    const seg=document.createElement('div');
+    seg.className='seg'; seg.dataset.b=b.n;
+    seg.style.cssText=`width:${w}%;background:${b.c}`;
+    strip.appendChild(seg);
+    const lbl=document.createElement('div');
+    lbl.className='lbl'; lbl.dataset.b=b.n;
+    lbl.style.width=`${w}%`;
+    lbl.textContent=b.n;
+    labs.appendChild(lbl);
+  });
+  const mk=document.createElement('div');
+  mk.id='marker'; mk.className='';
+  Object.assign(mk.style,{position:'absolute',top:'0',width:'2px',height:'100%',
+    background:'#fff',boxShadow:'0 0 8px rgba(255,255,255,0.9)',transform:'translateX(-50%)'});
+  strip.appendChild(mk);
+}
+
+function updStrip(dayPct, blkName){
+  const mk=document.getElementById('marker');
+  if(mk) mk.style.left=dayPct+'%';
+  document.querySelectorAll('.seg,.lbl').forEach(el=>{
+    el.classList.toggle('on', el.dataset.b===blkName);
+  });
+}
+
+/* ── STATE ───────────────────────────────────────────────────── */
+function getState(){
+  const now=new Date();
+  const cur=now.getHours()*60+now.getMinutes();
+  const sec=now.getSeconds();
+  const dayPct=Math.min(100,Math.max(0,((cur-D_S)/D_T)*100));
+
+  if(cur<D_S) return {type:'sleep',msg:'Routine starts at 6:00 AM.',dayPct:0};
+  if(cur>=D_E) return {type:'sleep',msg:'Sleep.',dayPct:100};
+
+  let idx=-1;
+  for(let i=0;i<R.length;i++){
+    if(m(R[i].t)<=cur) idx=i; else break;
+  }
+  if(idx<0) return {type:'sleep',msg:'Routine starts at 6:00 AM.',dayPct};
+
+  const item=R[idx];
+  const next=idx+1<R.length?R[idx+1]:null;
+  const up=R.slice(idx+1,idx+4);
+
+  const bd=BLOCKS.find(b=>b.n===item.b);
+  const bS=bd?m(bd.s):m(item.t);
+  const bE=bd?m(bd.e):m(item.t)+120;
+  const blkPct=Math.min(100,Math.max(0,((cur-bS)/(bE-bS))*100));
+
+  const iS=m(item.t);
+  const iE=next?m(next.t):bE;
+  const iPct=Math.min(100,Math.max(0,((cur+sec/60-iS)/(iE-iS))*100));
+  const minLeft=Math.max(0,Math.round(iE-cur-sec/60));
+
+  return {type:'active',item,next,up,dayPct,blkPct,iPct,minLeft,bE,idx,cur,sec};
+}
+
+/* ── RENDER CLOCK ────────────────────────────────────────────── */
+function renderClock(){
+  const now=new Date();
+  const h=now.getHours()%12||12;
+  const mm=String(now.getMinutes()).padStart(2,'0');
+  const ap=now.getHours()>=12?'PM':'AM';
+  document.getElementById('clock').innerHTML=
+    `${h}:${mm} <span class="ampm">${ap}</span>`;
+  document.getElementById('dateline').textContent=
+    now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+}
+
+/* ── RENDER BODY ─────────────────────────────────────────────── */
+let lastIdx=-99, lastSleepMin=0;
+function renderBody(s){
+  const el=document.getElementById('body');
+  if(s.type==='sleep'){
+    document.documentElement.style.setProperty('--c','#6d5a8e');
+    const now=new Date();
+    const curMin=now.getHours()*60+now.getMinutes();
+    const minsUntil = curMin >= D_E
+      ? (24*60 - curMin) + D_S
+      : D_S - curMin;
+    const hh=Math.floor(minsUntil/60);
+    const mm=minsUntil%60;
+    const untilStr = hh>0 ? `${hh}h ${mm}m` : `${mm}m`;
+    el.innerHTML=`
+      <div class="sleep-screen">
+        <div class="sleep-stars">✦ ✦ ✦</div>
+        <div class="sleep-moon">🌙</div>
+        <div class="sleep-title">Sleep</div>
+        <div class="sleep-sub">Rest &amp; Recover</div>
+        <div class="sleep-until">Routine begins in <span>${untilStr}</span></div>
+        <div class="sleep-stars">✦ ✦ ✦</div>
+      </div>`;
+    return;
+  }
+  const {item,up,blkPct,iPct,minLeft,bE}=s;
+  document.documentElement.style.setProperty('--c',item.c);
+
+  const mac=item.m?`<div class="macros">
+    <div class="macro"><span class="macro-val">${item.m.p}g</span><span class="macro-key">Protein</span></div>
+    <div class="macro"><span class="macro-val">${item.m.f}g</span><span class="macro-key">Fat</span></div>
+    <div class="macro"><span class="macro-val">${item.m.cb}g</span><span class="macro-key">Carbs</span></div>
+    <div class="macro"><span class="macro-val">${item.m.k}</span><span class="macro-key">kcal</span></div>
+  </div>`:'';
+
+  const rows=up.map(u=>`<div class="up-row">
+    <span class="up-t">${fmt(m(u.t))}</span>
+    <span class="up-a">${u.a}</span>
+  </div>`).join('');
+
+  el.innerHTML=`
+    <div class="blk-head">
+      ${ringSVG(iPct,minLeft)}
+      <div>
+        <div class="blk-name">${item.b}</div>
+        <div class="blk-end">Block ends ${fmt(bE)}</div>
+      </div>
+    </div>
+    <div class="now-lbl">Right now</div>
+    <div id="action">${item.a}</div>
+    ${mac}
+    <div class="blk-bar">
+      <div class="bar-track"><div class="bar-fill" id="blk-fill" style="width:${blkPct}%"></div></div>
+      <div class="blk-meta">${Math.round(blkPct)}% through block · ends ${fmt(bE)}</div>
+    </div>
+    ${rows.length?`<div id="coming"><div class="up-lbl">Coming up</div>${rows}</div>`:''}`;
+}
+
+/* ── UPDATE RING ONLY ────────────────────────────────────────── */
+function updateRing(s){
+  if(s.type!=='active') return;
+  const fill=document.querySelector('.ring-fill');
+  const txt=document.querySelector('.ring-txt');
+  if(!fill||!txt) return;
+  fill.style.setProperty('stroke-dashoffset', +(CIR*(s.iPct/100)).toFixed(2));
+  txt.textContent=s.minLeft>60?`${Math.round(s.minLeft/60)}h`:s.minLeft>0?`${s.minLeft}m`:'✓';
+}
+
+/* ── TICK ────────────────────────────────────────────────────── */
+function tick(){
+  const s=getState();
+  const blk=s.type==='active'?s.item.b:'Sleep';
+
+  renderClock();
+
+  const df=document.getElementById('day-fill');
+  const dm=document.getElementById('day-meta');
+  if(df) df.style.width=s.dayPct+'%';
+  if(dm) dm.textContent=`Day ${Math.round(s.dayPct)}% complete`;
+
+  setBg(blk);
+  updStrip(s.dayPct, blk);
+
+  const ci=s.type==='active'?s.idx:-1;
+  const sleepMinute = s.type==='sleep' ? Math.floor(Date.now()/60000) : 0;
+  if(ci!==lastIdx || sleepMinute!==lastSleepMin){
+    lastIdx=ci; lastSleepMin=sleepMinute; renderBody(s);
+  } else { updateRing(s); }
+}
+
+/* ── NUTRITION DATA ──────────────────────────────────────────── */
+const MEALS = [
+  {
+    name:'Breakfast', time:'6:45 AM', color:'#f59e0b',
+    macros:{p:32,f:33,c:2,k:432},
+    ingredients:[
+      {qty:'3 whole', name:'Eggs',    notes:['Choline','Vit B2','Vit B12','Vit D','Selenium']},
+      {qty:'2 oz',    name:'Cheddar', notes:['Calcium','Vit K2','Zinc','Vit A']},
+      {qty:'8 oz',    name:'Water',   notes:[]},
+    ],
+    nutrients:['Choline','Vit A','Vit B2','Vit B12','Vit D','Calcium','Selenium','Zinc','K2'],
+  },
+  {
+    name:'Lunch', time:'11:00 AM', color:'#34d399',
+    macros:{p:55,f:5,c:56,k:474},
+    ingredients:[
+      {qty:'8 oz',   name:'Chicken Breast',       notes:['Vit B3','Vit B6','Selenium','Phosphorus']},
+      {qty:'1 cup',  name:'White Rice',            notes:['Glucose','Glycogen fuel']},
+      {qty:'1',      name:'Kiwi',                  notes:['Vit C','Vit K','Folate','Potassium']},
+      {qty:'8 oz',   name:'Ginger/Peppermint Tea', notes:['Digestion','Anti-inflammatory']},
+    ],
+    nutrients:['Vit B3','Vit B6','Vit C','Vit K','Iron','Selenium','Folate','Phosphorus','Potassium'],
+  },
+  {
+    name:'Pre-Workout Shake', time:'4:00 PM', color:'#60a5fa',
+    macros:{p:24,f:2,c:3,k:120},
+    ingredients:[
+      {qty:'1 scoop', name:'Whey Protein', notes:['Leucine','BCAAs','Fast-digesting']},
+      {qty:'8 oz',    name:'Water',        notes:[]},
+    ],
+    nutrients:['Leucine','BCAAs','Rapid protein synthesis'],
+  },
+  {
+    name:'Post-Workout Dinner', time:'6:00 PM', color:'#c084fc',
+    macros:{p:52,f:18,c:50,k:575},
+    ingredients:[
+      {qty:'8 oz',   name:'Ground Beef (90/10)', notes:['Heme Iron','Vit B12','Zinc','Creatine','CLA']},
+      {qty:'1 cup',  name:'White Rice',          notes:['Glycogen replenishment']},
+      {qty:'1 cup',  name:'Kimchi',              notes:['Probiotics','Vit C','Vit K','Lactobacillus']},
+    ],
+    nutrients:['Heme Iron','Vit B12','Zinc','Creatine','CLA','Probiotics','Vit K'],
+  },
+  {
+    name:'Night Snack', time:'8:15 PM', color:'#c084fc', wide:true,
+    macros:{p:4,f:22,c:39,k:339},
+    ingredients:[
+      {qty:'1 whole',  name:'Avocado',       notes:['Vit E','Vit K','Folate','Potassium','Monounsaturated fat']},
+      {qty:'1 (or ½)', name:'Banana',        notes:['Potassium','Vit B6','Tryptophan','Magnesium']},
+      {qty:'1 cup',    name:'Chamomile Tea', notes:['Apigenin','GABA support','Sleep onset']},
+    ],
+    nutrients:['Vit E','Vit K','Folate','Potassium','Magnesium','Vit B6','Tryptophan','Apigenin'],
+  },
+];
+
+const GLOSSARY = [
+  { cat:'Macronutrients', items:[
+    {name:'Protein',       desc:'The primary building block of muscle tissue, enzymes, and hormones. Provides 4 kcal per gram. Essential for repair, recovery, and growth — especially critical post-workout when muscle protein synthesis is elevated.'},
+    {name:'Fat',           desc:'Critical for producing testosterone and other steroid hormones, brain function, and absorbing fat-soluble vitamins (A, D, E, K). Provides 9 kcal per gram. Don\'t fear dietary fat — it\'s doing a lot of work in this plan.'},
+    {name:'Carbohydrates', desc:'Primary fuel source for the brain and working muscles. Stored as glycogen in muscle and liver. Strategically placed around training in this routine to maximise performance and replenish glycogen after lifting.'},
+  ]},
+  { cat:'Vitamins', items:[
+    {name:'Vitamin A',               desc:'Supports vision (especially night vision and low-light adaptation), immune defense, skin cell turnover, and reproductive health. Found in egg yolks and dairy.'},
+    {name:'Vitamin B2 (Riboflavin)', desc:'Drives energy metabolism at the cellular level — helps convert food into usable ATP. Acts as an antioxidant co-factor protecting cells from oxidative stress. Found in eggs and cheddar.'},
+    {name:'Vitamin B3 (Niacin)',     desc:'Key role in energy production via NAD+ pathways and DNA repair. Also supports healthy cholesterol levels and blood flow. Found in high amounts in chicken breast.'},
+    {name:'Vitamin B6',              desc:'Required for protein metabolism, neurotransmitter synthesis (serotonin, dopamine, GABA), and hormone regulation. Also involved in glycogen breakdown during exercise. Found in chicken and banana.'},
+    {name:'Vitamin B12',             desc:'Essential for nerve function, red blood cell formation, and DNA synthesis. Only found naturally in animal products. Deficiency causes fatigue, brain fog, and mood issues. Critical for energy and nervous system health.'},
+    {name:'Vitamin C',               desc:'Potent water-soluble antioxidant. Required for collagen synthesis (joints, skin, blood vessels), immune function, and enhancing iron absorption from food. Found in kiwi and kimchi.'},
+    {name:'Vitamin D',               desc:'A hormone precursor regulating calcium absorption, bone density, immune function, and testosterone levels. Produced via sun exposure — reinforced by your morning outdoor time. Found in egg yolks.'},
+    {name:'Vitamin E',               desc:'Fat-soluble antioxidant that protects cell membranes from oxidative damage caused by training. Supports immune function and skin health. Found in avocado.'},
+    {name:'Vitamin K',               desc:'Essential for blood clotting and directing calcium into bones. Two main forms: K1 (from plants, clotting) and K2 (from fermented/animal foods, bone and cardiovascular health). Found in kiwi and kimchi.'},
+    {name:'Vitamin K2',              desc:'Specifically directs calcium into bones rather than allowing it to deposit in soft tissue and arteries. Also supports testosterone production and cardiovascular health. Found in aged cheddar.'},
+    {name:'Folate (Vitamin B9)',     desc:'Required for DNA synthesis, cell division, and methylation reactions. Critical for red blood cell production and homocysteine regulation (a cardiovascular risk marker). Found in avocado and kiwi.'},
+  ]},
+  { cat:'Minerals', items:[
+    {name:'Calcium',     desc:'Most abundant mineral in the body. Structural component of bones and teeth. Also essential for muscle contraction, nerve signal transmission, and blood clotting. Found in cheddar — paired with K2 for optimal bone deposition.'},
+    {name:'Iron (Heme)', desc:'Carries oxygen in red blood cells via haemoglobin. Heme iron (from red meat) is absorbed 2–3× more efficiently than non-heme plant iron. Low iron = fatigue, poor endurance, and impaired cognitive function.'},
+    {name:'Zinc',        desc:'Directly involved in testosterone production, immune function, wound healing, protein synthesis, and taste/smell. Found in beef, eggs, and cheddar. Training increases zinc losses through sweat.'},
+    {name:'Selenium',    desc:'A powerful antioxidant mineral that supports thyroid hormone conversion (T4→T3), DNA synthesis, and reproductive health. Found in eggs and chicken. Important for metabolic rate and recovery.'},
+    {name:'Potassium',   desc:'Regulates muscle contractions (including the heart), nerve signaling, and fluid balance. Counteracts sodium to maintain healthy blood pressure. Found in banana and avocado — timed at night to support recovery.'},
+    {name:'Magnesium',   desc:'Involved in 300+ enzymatic reactions in the body. Particularly critical for sleep quality, muscle relaxation, nervous system downregulation, and protein synthesis. The night cap timing is intentional — magnesium supports sleep onset.'},
+    {name:'Phosphorus',  desc:'Second most abundant mineral in the body. Key for ATP (energy) production, bone structure, and the integrity of cell membranes. Found in chicken and eggs.'},
+  ]},
+  { cat:'Bioactives & Compounds', items:[
+    {name:'Choline',            desc:'Precursor to acetylcholine — the neurotransmitter responsible for memory, muscle control, and rapid neural firing. Also critical for liver health and fat metabolism. Heavily concentrated in egg yolks. Don\'t skip the yolk.'},
+    {name:'Leucine / BCAAs',    desc:'Branched-chain amino acids, especially leucine, directly trigger muscle protein synthesis (MPS). This is the primary reason whey protein at 4:00 PM works so well — leucine peaks in the bloodstream just as you begin training.'},
+    {name:'Creatine (dietary)', desc:'Found naturally in red meat. Regenerates ATP — the energy currency for short explosive efforts. Dietary creatine from beef complements your training even without a separate creatine supplement.'},
+    {name:'CLA',                desc:'Conjugated Linoleic Acid — a naturally occurring fatty acid in grass-fed beef. Linked to improved body composition, reduced body fat storage, and anti-inflammatory effects on muscle tissue.'},
+    {name:'Tryptophan',         desc:'An amino acid that converts sequentially to serotonin and then melatonin. Eating banana at 8:15 PM seeds your brain with the raw material to produce melatonin naturally ahead of your 10 PM sleep target.'},
+    {name:'Apigenin',           desc:'A flavonoid in chamomile tea that binds to GABA-A receptors in the brain, producing a mild sedative and anxiolytic effect. Directly supports sleep onset and reduces time-to-sleep without grogginess.'},
+    {name:'Probiotics',         desc:'Live beneficial bacteria in kimchi (mainly Lactobacillus). Support gut microbiome diversity, immune function, and the gut-brain axis. Research links gut health to mood regulation, cognitive function, and reduced anxiety.'},
+  ]},
+];
+
+/* ── BUILD MEALS SECTION ─────────────────────────────────────── */
+function buildMeals(){
+  const totP=MEALS.reduce((a,meal)=>a+meal.macros.p,0);
+  const totF=MEALS.reduce((a,meal)=>a+meal.macros.f,0);
+  const totC=MEALS.reduce((a,meal)=>a+meal.macros.c,0);
+  const totK=MEALS.reduce((a,meal)=>a+meal.macros.k,0);
+
+  const cards=MEALS.map(meal=>`
+    <div class="meal-card${meal.wide?' wide':''}" style="--mc:${meal.color}">
+      <div class="mc-head">
+        <div class="mc-time">${meal.time}</div>
+        <div class="mc-name">${meal.name}</div>
+      </div>
+      <div class="mc-macros">
+        <div class="mc-mac"><span class="mc-mac-val">${meal.macros.p}g</span><span class="mc-mac-key">Protein</span></div>
+        <div class="mc-mac"><span class="mc-mac-val">${meal.macros.f}g</span><span class="mc-mac-key">Fat</span></div>
+        <div class="mc-mac"><span class="mc-mac-val">${meal.macros.c}g</span><span class="mc-mac-key">Carbs</span></div>
+        <div class="mc-mac"><span class="mc-mac-val">${meal.macros.k}</span><span class="mc-mac-key">kcal</span></div>
+      </div>
+      <div class="mc-ings">
+        ${meal.ingredients.map(i=>`
+          <div class="ing-row">
+            <span class="ing-qty">${i.qty}</span>
+            <span class="ing-name">${i.name}</span>
+            <span class="ing-notes">${i.notes.map(n=>`<span class="ing-note">${n}</span>`).join('')}</span>
+          </div>`).join('')}
+      </div>
+      <div class="mc-nutrients">
+        ${meal.nutrients.map(n=>`<span class="nut-tag">${n}</span>`).join('')}
+      </div>
+    </div>`).join('');
+
+  const glossCats=GLOSSARY.map(cat=>`
+    <div class="gloss-cat">
+      <div class="gloss-cat-name">${cat.cat}</div>
+      ${cat.items.map(item=>`
+        <details class="gloss-item">
+          <summary>${item.name}</summary>
+          <div class="gloss-desc">${item.desc}</div>
+        </details>`).join('')}
+    </div>`).join('');
+
+  document.getElementById('meals-section').innerHTML=`
+    <div class="meals-rule"></div>
+    <div class="sec-title">Daily Nutrition</div>
+    <div class="daily-totals">
+      <div class="tot-item"><div class="tot-val">${totP}g</div><div class="tot-key">Protein</div></div>
+      <div class="tot-item"><div class="tot-val">${totF}g</div><div class="tot-key">Fat</div></div>
+      <div class="tot-item"><div class="tot-val">${totC}g</div><div class="tot-key">Carbs</div></div>
+      <div class="tot-item"><div class="tot-val">${totK}</div><div class="tot-key">kcal</div></div>
+    </div>
+    <div class="meal-grid">${cards}</div>
+    <div class="sec-title" style="margin-bottom:16px">Nutrient Glossary</div>
+    <div class="glossary">${glossCats}</div>`;
+}
+
+/* ── INIT ────────────────────────────────────────────────────── */
+(function(){
+  const init=getState();
+  const initBlk=init.type==='active'?init.item.b:'Sleep';
+  document.getElementById('bga').style.background=BG[initBlk]||BG.Sleep;
+  lastBl=initBlk;
+  buildStrip();
+  buildMeals();
+  tick();
+  setInterval(tick,1000);
+})();
+</script>
+</body>
+</html>
